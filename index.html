@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bharat Voice — About, Access & Download</title>
-<meta name="description" content="Bharat Voice: a bilingual voice study companion for Indian students. Learn how it works and get the app.">
+<title>Bharat Voice — AI Study Companion</title>
+<meta name="description" content="Bharat Voice: a bilingual voice study companion for Indian students. Learn how it works and start learning online.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Yatra+One&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -286,7 +286,7 @@
 
         <div class="about-cta">
           <button class="btn btn-primary" id="toLayer2Btn">Continue</button>
-          <span class="hint">Next: see how it works, then get the app</span>
+          <span class="hint">Next: see how it works and start learning</span>
         </div>
       </div>
 
@@ -353,7 +353,7 @@
         <h3>CONTINUE AS GUEST</h3>
         <input type="text" class="guest-name" id="guestName" placeholder="Your name (optional)">
         <button class="btn btn-primary" id="guestBtn" style="width:100%; justify-content:center;">Continue as Guest</button>
-        <p class="oauth-row" style="margin-top:14px;"><span class="soon">No account needed — this just takes you to the download.</span></p>
+        <p class="oauth-row" style="margin-top:14px;"><span class="soon">No account needed — launch directly in your browser.</span></p>
       </div>
       <div class="access-col access-divider">
         <h3>OTHER OPTIONS</h3>
@@ -369,7 +369,7 @@
 <!-- ===================== LAYER 3 — DOWNLOAD ===================== -->
 <section class="layer" id="layer3">
   <div class="layer-inner enter-motion">
-    <div class="eyebrow-tag"><span class="dot"></span>Get the app</div>
+    <div class="eyebrow-tag"><span class="dot"></span>Launch Bharat Voice</div>
     <div class="dl-wrap">
       <div class="dl-card">
         <div class="welcome-line" id="welcomeLine">Welcome, Guest</div>
@@ -379,12 +379,11 @@
         <h2>Bharat Voice</h2>
         <div class="dl-meta">
           <span>v3</span>
-          <span id="fileSizeTag">~128 KB</span>
-          <span>Works offline as a local page</span>
+          <span>Cloud AI</span>
+          <span>Online Web App</span>
         </div>
-        <button class="btn btn-primary" id="openTabBtn" style="width:100%; justify-content:center;">Open Bharat Voice</button>
-        <button class="btn btn-ghost" id="downloadBtn" style="width:100%; justify-content:center; margin-top:10px;">Download a copy instead</button>
-        <p style="font-size:11.5px;color:var(--ivory-dim);opacity:0.7;margin-top:14px;line-height:1.6;">"Open" launches it straight in your browser — nothing is saved to disk, so it works the same on PC and phone with no security prompts. Use "Download" only if you want an offline copy.</p>
+        <button class="btn btn-primary" id="openTabBtn" style="width:100%; justify-content:center; font-size:15.5px; padding:14px 28px;">Open Bharat Voice</button>
+        <p style="font-size:12.5px;color:var(--ivory-dim);opacity:0.75;margin-top:14px;line-height:1.6;">Launches instantly in your browser on mobile, tablet, or desktop — no download or installation needed.</p>
         <div class="dl-status" id="dlStatus"></div>
       </div>
 
@@ -392,7 +391,7 @@
         <h3 class="dev">कैसे इस्तेमाल करें — How to use it</h3>
         <div class="step">
           <div class="num">1</div>
-          <div><h4>Download &amp; open</h4><p>Tap Download, then open the file in Chrome (Android) or any browser on desktop — no installer, no app store.</p></div>
+          <div><h4>Launch in browser</h4><p>Click Open Bharat Voice to launch the app directly in your browser — no download or installation required.</p></div>
         </div>
         <div class="step">
           <div class="num">2</div>
@@ -400,7 +399,7 @@
         </div>
         <div class="step">
           <div class="num">3</div>
-          <div><h4>Check the connection settings</h4><p>Tap the gear icon top-right to pick a provider and add your own API key — this is what lets Bharat Voice think and reply.</p></div>
+          <div><h4>Cloud AI connected</h4><p>Automatically connected to Bharat Voice Cloud AI. Sign in with Google to sync your study goals and test scores.</p></div>
         </div>
         <div class="step">
           <div class="num">4</div>
@@ -460,6 +459,16 @@
   document.getElementById('guestBtn').addEventListener('click', (e) => {
     const name = document.getElementById('guestName').value.trim();
     document.getElementById('welcomeLine').textContent = name ? ('Welcome, ' + name) : 'Welcome, Guest';
+    if (name) {
+      try {
+        let sess = JSON.parse(localStorage.getItem('bharatVoice.session') || '{}');
+        if (!sess.user) sess.user = {};
+        sess.user.name = name;
+        sess.user.email = sess.user.email || '';
+        sess.user.plan = sess.user.plan || 'free';
+        localStorage.setItem('bharatVoice.session', JSON.stringify(sess));
+      } catch (err) {}
+    }
     goTo(3, e.currentTarget);
   });
 
@@ -472,28 +481,13 @@
     return URL.createObjectURL(blob);
   }
 
-  document.getElementById('downloadBtn').addEventListener('click', () => {
-    const statusEl = document.getElementById('dlStatus');
-    try {
-      statusEl.textContent = 'Preparing your download…';
-      const url = buildAppBlobUrl();
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'BharatVoice-App.html';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-      statusEl.textContent = 'Saved — open the downloaded file to start.';
-    } catch (err) {
-      statusEl.textContent = 'Blocked in this preview — try "Open Bharat Voice" above instead.';
-    }
-  });
-
   document.getElementById('openTabBtn').addEventListener('click', () => {
-    const url = buildAppBlobUrl();
-    window.open(url, '_blank');
-    document.getElementById('dlStatus').textContent = 'Opened — tap the diya to start talking to Bharat Voice.';
+    if (window.location.protocol.startsWith('http')) {
+      window.location.href = 'app.html';
+    } else {
+      const url = buildAppBlobUrl();
+      window.location.href = url;
+    }
   });
 
   // rail dots also act as manual back/forward nav once unlocked
