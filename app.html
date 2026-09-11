@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Yatra+One&family=Poppins:wght@300;400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <style>
   :root{
     --night: #140f2b;
@@ -1398,7 +1400,7 @@ Help learners understand and complete assignments, but do not encourage cheating
 
 RESPONSE QUALITY
 - Use Markdown headings, numbered steps, tables, and code fences when they improve readability.
-- For mathematical expressions, use readable notation and show calculations.
+- For mathematical expressions and science formulas, ALWAYS use standard LaTeX: use $...$ for inline math (e.g. $x^2 + y^2 = r^2$) and $$...$$ for standalone display equations (e.g. $$\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$).
 - For code, do not put explanatory prose inside the code unless it is a comment.
 - Do not fabricate citations, sources, experiments, quotations, or references.
 - If the user asks for current or fast-changing information and no browsing/tool access is available, explicitly state the limitation instead of presenting stale information as current.
@@ -2357,11 +2359,37 @@ Your owner is Danish Chaubey, also known as Pratham. Your founder and co-owner i
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
   function renderMarkdown(raw){
+    // 1. Extract & protect code blocks
     const codeBlocks = [];
     let text = raw.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
       codeBlocks.push(code.replace(/\n$/, ''));
       return '\u0000CODEBLOCK' + (codeBlocks.length - 1) + '\u0000';
     });
+
+    // 2. Extract & protect LaTeX math formulas before HTML escaping / markdown formatting
+    const mathBlocks = [];
+
+    // 2a. Display math: $$...$$ or \[...\]
+    text = text.replace(/(\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\])/g, (m, all, p1, p2) => {
+      const formula = (p1 !== undefined ? p1 : p2).trim();
+      mathBlocks.push({ formula, display: true });
+      return '\u0000MATHBLOCK' + (mathBlocks.length - 1) + '\u0000';
+    });
+
+    // 2b. Inline math: \(...\)
+    text = text.replace(/\\\(([\s\S]*?)\\\)/g, (m, formula) => {
+      mathBlocks.push({ formula: formula.trim(), display: false });
+      return '\u0000MATHBLOCK' + (mathBlocks.length - 1) + '\u0000';
+    });
+
+    // 2c. Inline math: $...$ (avoiding currency amounts like $10 or $99.99)
+    text = text.replace(/(^|[^\$])\$([^\$\n]+?)\$(?!\$)/g, (m, prefix, formula) => {
+      if (/^\s*\d+(\.\d+)?\s*$/.test(formula)) return m; // simple price/currency
+      mathBlocks.push({ formula: formula.trim(), display: false });
+      return prefix + '\u0000MATHBLOCK' + (mathBlocks.length - 1) + '\u0000';
+    });
+
+    // 3. Regular Markdown formatting
     text = escapeHtml(text);
     text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
     text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -2396,12 +2424,32 @@ Your owner is Danish Chaubey, also known as Pratham. Your founder and co-owner i
     text = text.split(/\n{2,}/).map(chunk => {
       if (/^\s*<(h1|h2|h3|ul|ol|table)/.test(chunk.trim())) return chunk;
       if (/^\u0000CODEBLOCK\d+\u0000$/.test(chunk.trim())) return chunk;
+      if (/^\u0000MATHBLOCK\d+\u0000$/.test(chunk.trim())) return chunk;
       return '<p>' + chunk.trim().replace(/\n/g, '<br>') + '</p>';
     }).join('\n');
 
+    // 4. Restore Codeblocks
     text = text.replace(/\u0000CODEBLOCK(\d+)\u0000/g, (m, i) => {
       return `<pre><span class="copy-code" data-idx="${i}">Copy</span><code>${escapeHtml(codeBlocks[Number(i)])}</code></pre>`;
     });
+
+    // 5. Restore & Render Math with KaTeX
+    text = text.replace(/\u0000MATHBLOCK(\d+)\u0000/g, (m, i) => {
+      const item = mathBlocks[Number(i)];
+      if (!item) return '';
+      if (typeof katex !== 'undefined' && katex && katex.renderToString){
+        try {
+          return katex.renderToString(item.formula, {
+            displayMode: item.display,
+            throwOnError: false
+          });
+        } catch (err){
+          console.warn('KaTeX render error:', err);
+        }
+      }
+      return item.display ? `<div class="katex-fallback">$$${escapeHtml(item.formula)}$$</div>` : `<span class="katex-fallback">$${escapeHtml(item.formula)}$</span>`;
+    });
+
     return { html: text, codeBlocks };
   }
 
@@ -2500,6 +2548,31 @@ Your owner is Danish Chaubey, also known as Pratham. Your founder and co-owner i
     }
   }
 
+  function cleanTextForSpeech(raw){
+    if (!raw) return '';
+    let s = raw;
+    s = s.replace(/```[\s\S]*?```/g, ' code block omitted. ');
+    s = s.replace(/```flashcards[\s\S]*?```/g, '');
+    s = s.replace(/```examquiz[\s\S]*?```/g, '');
+    s = s.replace(/\$\$([\s\S]*?)\$\$/g, ' formula: $1. ');
+    s = s.replace(/\\\[([\s\S]*?)\\\]/g, ' formula: $1. ');
+    s = s.replace(/\\\(([\s\S]*?)\\\)/g, ' $1 ');
+    s = s.replace(/\$([^\$\n]+?)\$/g, ' $1 ');
+    s = s.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, ' $1 divided by $2 ');
+    s = s.replace(/\\sqrt\{([^}]+)\}/g, ' square root of $1 ');
+    s = s.replace(/\\times/g, ' multiplied by ');
+    s = s.replace(/\\pm/g, ' plus or minus ');
+    s = s.replace(/\\le/g, ' less than or equal to ');
+    s = s.replace(/\\ge/g, ' greater than or equal to ');
+    s = s.replace(/\\ne/g, ' not equal to ');
+    s = s.replace(/\\approx/g, ' approximately ');
+    s = s.replace(/\\cdot/g, ' times ');
+    s = s.replace(/\\[a-zA-Z]+/g, ' ');
+    s = s.replace(/[\{\}\^_\$]/g, ' ');
+    s = s.replace(/[*#_`~]/g, '');
+    return s.trim();
+  }
+
   // ---------- Speech synthesis ----------
   function speak(text){
     if (!('speechSynthesis' in window)) {
@@ -2507,7 +2580,8 @@ Your owner is Danish Chaubey, also known as Pratham. Your founder and co-owner i
       statusText.classList.remove('active');
       return;
     }
-    const utter = new SpeechSynthesisUtterance(text);
+    const cleanSpoken = cleanTextForSpeech(text);
+    const utter = new SpeechSynthesisUtterance(cleanSpoken);
     utter.rate = 1;
     utter.pitch = 1.02;
     orbBtn.classList.add('speaking');
